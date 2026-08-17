@@ -4,3 +4,4 @@ plotly>=5.20,<7
 openpyxl>=3.1,<4
 requests>=2.31,<3
 Pillow>=10,<12
+pypdf>=6,<7

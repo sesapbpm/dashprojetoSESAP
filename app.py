@@ -146,6 +146,19 @@ except Exception as erro:
     st.stop()
 
 hoje = pd.Timestamp.now().normalize()
+datas_validas = entregas["Data"].dropna()
+
+
+def limpar_todos_filtros():
+    st.session_state["filtro_fases"] = []
+    st.session_state["filtro_frentes"] = []
+    st.session_state["filtro_tipos"] = []
+    st.session_state["filtro_status"] = []
+    if not datas_validas.empty:
+        st.session_state["filtro_periodo"] = (datas_validas.min().date(), datas_validas.max().date())
+    st.session_state["fase_executiva"] = None
+    st.session_state["frente_selecionada"] = None
+    st.session_state["filtro_versao"] = st.session_state.get("filtro_versao", 0) + 1
 
 with st.sidebar:
     if (ROOT / "LogoProjeto.png").exists():
@@ -156,13 +169,12 @@ with st.sidebar:
     st.caption("DIMP · SESAP/RN · UFRN")
     st.divider()
     st.markdown("### Filtros")
-    fases = st.multiselect("Fase", sorted(entregas["Fase"].unique()), default=[])
-    frentes = st.multiselect("Frente", sorted(entregas["Frente"].unique()), default=[])
-    tipos = st.multiselect("Tipo", sorted(entregas["Tipo"].unique()), default=[])
-    status = st.multiselect("Status", sorted(entregas["Status"].unique()), default=[])
-    datas_validas = entregas["Data"].dropna()
+    fases = st.multiselect("Fase", sorted(entregas["Fase"].unique()), default=[], key="filtro_fases")
+    frentes = st.multiselect("Frente", sorted(entregas["Frente"].unique()), default=[], key="filtro_frentes")
+    tipos = st.multiselect("Tipo", sorted(entregas["Tipo"].unique()), default=[], key="filtro_tipos")
+    status = st.multiselect("Status", sorted(entregas["Status"].unique()), default=[], key="filtro_status")
     if not datas_validas.empty:
-        periodo = st.date_input("Período", value=(datas_validas.min().date(), datas_validas.max().date()), min_value=datas_validas.min().date(), max_value=datas_validas.max().date())
+        periodo = st.date_input("Período", value=(datas_validas.min().date(), datas_validas.max().date()), min_value=datas_validas.min().date(), max_value=datas_validas.max().date(), key="filtro_periodo")
     else:
         periodo = ()
     st.divider()
@@ -178,6 +190,7 @@ with st.sidebar:
     if acesso_interno:
         st.success("Modo interno habilitado")
     st.divider()
+    st.button("Remover todos os filtros", on_click=limpar_todos_filtros, use_container_width=True, type="primary")
     if st.button("Atualizar dados", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
@@ -220,12 +233,15 @@ if acesso_interno:
 abas = st.tabs(nomes_abas)
 
 with abas[0]:
-    total = len(df)
-    realizados = int((df["Status"] == "Realizado").sum())
-    pendentes = int((df["Status"] == "Pendente").sum())
+    fase_executiva = st.session_state.get("fase_executiva")
+    df_exec = df[df["Fase"] == fase_executiva].copy() if fase_executiva else df.copy()
+    marcos_exec = marcos[marcos["Fase"] == fase_executiva].copy() if fase_executiva else marcos.copy()
+    total = len(df_exec)
+    realizados = int((df_exec["Status"] == "Realizado").sum())
+    pendentes = int((df_exec["Status"] == "Pendente").sum())
     taxa = realizados / total if total else 0
-    progresso = progresso_ponderado(marcos)
-    ultima = df["Data"].max()
+    progresso = progresso_ponderado(marcos_exec)
+    ultima = df_exec["Data"].max()
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Entregas realizadas", f"{realizados}")
@@ -252,9 +268,9 @@ with abas[0]:
 
     st.markdown('<div class="section-title">Jornada do projeto</div>', unsafe_allow_html=True)
     periodos = [
-        ("Fase 1 · Estratégica", "out/2024 — set/2025", pd.Timestamp("2024-10-01"), pd.Timestamp("2025-09-30")),
-        ("Fase 2 · Tática", "out/2025 — set/2026", pd.Timestamp("2025-10-01"), pd.Timestamp("2026-09-30")),
-        ("Fase 3 · Operacional", "out/2026 — out/2027", pd.Timestamp("2026-10-01"), pd.Timestamp("2027-10-31")),
+        ("Fase 1 - Estratégica", "out/2024 — set/2025", pd.Timestamp("2024-10-01"), pd.Timestamp("2025-09-30")),
+        ("Fase 2 - Tática", "out/2025 — set/2026", pd.Timestamp("2025-10-01"), pd.Timestamp("2026-09-30")),
+        ("Fase 3 - Operacional", "out/2026 — out/2027", pd.Timestamp("2026-10-01"), pd.Timestamp("2027-10-31")),
     ]
     cols = st.columns(3)
     for col, (nome, periodo_txt, ini, fim) in zip(cols, periodos):
@@ -264,22 +280,26 @@ with abas[0]:
             classe, rotulo = "active", "Em execução"
         else:
             classe, rotulo = "future", "Planejada"
-        extra = " phase-active" if classe == "active" else ""
-        col.markdown(f'<div class="phase-card{extra}"><div class="phase-name">{nome}</div><div class="phase-period">{periodo_txt}</div><span class="phase-status {classe}">{rotulo}</span></div>', unsafe_allow_html=True)
+        selecionada = fase_executiva == nome
+        if col.button(f"{nome}\n\n{periodo_txt} · {rotulo}", key=f"fase_{nome}", use_container_width=True, type="primary" if selecionada else "secondary"):
+            st.session_state["fase_executiva"] = None if selecionada else nome
+            st.rerun()
+    if fase_executiva:
+        st.info(f"Visão filtrada por **{fase_executiva}**. Clique novamente na fase ou use ‘Remover todos os filtros’ para voltar à visão completa.")
 
     esquerda, direita = st.columns([1.45, 1])
-    mensal = df.dropna(subset=["Mês"]).groupby(["Mês", "Status"]).size().reset_index(name="Entregas")
+    mensal = df_exec.dropna(subset=["Mês"]).groupby(["Mês", "Status"]).size().reset_index(name="Entregas")
     fig = px.bar(mensal, x="Mês", y="Entregas", color="Status", barmode="stack", title="Evolução mensal das entregas", color_discrete_map={"Realizado": CORES["verde_agua"], "Pendente": CORES["amarelo"]})
     esquerda.plotly_chart(grafico_layout(fig), use_container_width=True)
 
-    por_fase = df.groupby(["Fase", "Status"]).size().reset_index(name="Entregas")
+    por_fase = df_exec.groupby(["Fase", "Status"]).size().reset_index(name="Entregas")
     fig = px.bar(por_fase, y="Fase", x="Entregas", color="Status", orientation="h", title="Situação por fase", color_discrete_map={"Realizado": CORES["verde"], "Pendente": CORES["amarelo"]})
     direita.plotly_chart(grafico_layout(fig), use_container_width=True)
 
-    st.caption(f"Último registro datado: {ultima.strftime('%d/%m/%Y') if pd.notna(ultima) else 'não disponível'} · 11 integrantes · capacidade nominal de 160 h/semana")
-
 with abas[1]:
-    realizados_df = df[df["Status"] == "Realizado"]
+    frente_selecionada = st.session_state.get("frente_selecionada")
+    df_entregas = df[df["Frente"] == frente_selecionada].copy() if frente_selecionada else df.copy()
+    realizados_df = df_entregas[df_entregas["Status"] == "Realizado"]
     contagens = realizados_df["Tipo"].value_counts()
     cols = st.columns(4)
     for col, tipo in zip(cols, ["Produto", "Reunião", "Visitas Técnicas", "Capacitação"]):
@@ -287,15 +307,28 @@ with abas[1]:
 
     c1, c2 = st.columns(2)
     frente = df.groupby(["Frente", "Status"]).size().reset_index(name="Entregas")
-    fig = px.bar(frente, y="Frente", x="Entregas", color="Status", orientation="h", title="Entregas por frente", color_discrete_map={"Realizado": CORES["verde_agua"], "Pendente": CORES["amarelo"]})
-    c1.plotly_chart(grafico_layout(fig, 470), use_container_width=True)
+    fig = px.bar(frente, y="Frente", x="Entregas", color="Status", orientation="h", custom_data=["Frente"], title="Entregas por frente · clique em uma barra para filtrar", color_discrete_map={"Realizado": CORES["verde_agua"], "Pendente": CORES["amarelo"]})
+    evento_frente = c1.plotly_chart(grafico_layout(fig, 470), use_container_width=True, on_select="rerun", selection_mode="points", key=f"grafico_frente_{st.session_state.get('filtro_versao', 0)}")
+    pontos = evento_frente.selection.points if evento_frente and evento_frente.selection else []
+    if pontos:
+        nova_frente = pontos[0].get("customdata", [None])[0]
+        if nova_frente and nova_frente != st.session_state.get("frente_selecionada"):
+            st.session_state["frente_selecionada"] = nova_frente
+            st.rerun()
     subtipo = realizados_df[realizados_df["Subtipo"] != "Não informado"]["Subtipo"].value_counts().head(12).sort_values().reset_index()
     fig = px.bar(subtipo, y="Subtipo", x="count", orientation="h", title="Principais produtos e atividades", color_discrete_sequence=[CORES["azul"]])
     fig.update_xaxes(title="Entregas"); fig.update_yaxes(title="")
     c2.plotly_chart(grafico_layout(fig, 470), use_container_width=True)
 
     st.markdown('<div class="section-title">Detalhamento das entregas</div>', unsafe_allow_html=True)
-    tabela = df[["Data", "Fase", "Tipo", "Subtipo", "Descrição", "Frente", "Responsável", "Local", "Status", "Lista Mestra"]].sort_values("Data", ascending=False)
+    if frente_selecionada:
+        aviso, limpar = st.columns([5, 1])
+        aviso.info(f"Tela filtrada pela frente **{frente_selecionada}**.")
+        if limpar.button("Remover filtro", use_container_width=True):
+            st.session_state["frente_selecionada"] = None
+            st.session_state["filtro_versao"] = st.session_state.get("filtro_versao", 0) + 1
+            st.rerun()
+    tabela = df_entregas[["Data", "Fase", "Tipo", "Subtipo", "Descrição", "Frente", "Responsável", "Local", "Status", "Lista Mestra"]].sort_values("Data", ascending=False)
     st.dataframe(tabela, use_container_width=True, hide_index=True, column_config={"Data": st.column_config.DateColumn("Data", format="DD/MM/YYYY")}, height=440)
     st.download_button("Baixar dados filtrados (CSV)", tabela.to_csv(index=False).encode("utf-8-sig"), "entregas_sesap.csv", "text/csv")
 
@@ -350,6 +383,37 @@ with abas[3]:
     a1.caption("Automação via RPA da extração de dados do SIPAC, antes realizada manualmente.")
     a2.metric("Planilha de terceirizados", "> 99%", "redução no tempo de análise")
     a2.caption("Conferência automatizada das folhas de ponto: de aproximadamente 57h40 para poucos minutos.")
+
+    st.markdown('<div class="section-title">Atualização apresentada à liderança · RCL 003/2026</div>', unsafe_allow_html=True)
+    u1, u2 = st.columns(2)
+    u1.markdown('''<div class="result-card"><h3>Gestão de terceirizados</h3><ul>
+    <li>Dashboard centralizado para gestão e auditoria operacional dos contratos.</li>
+    <li>Consolidação dos registros digitais de frequência e cálculo automático de glosas por faltas e inconsistências.</li>
+    <li>Cruzamento do efetivo previsto versus realizado, com indicadores financeiros.</li>
+    <li>Transferência integral da ferramenta e do fluxo operacional para colaborador da CGC.</li>
+    </ul></div>''', unsafe_allow_html=True)
+    u2.markdown('''<div class="result-card"><h3>Gestão de estoques</h3><ul>
+    <li>Dashboard piloto centraliza itens, consultas, alertas e visão por unidade.</li>
+    <li>Consolidação reduzida de cerca de <b>8 horas para 10 minutos</b>: aproximadamente <b>99% de redução</b> e processamento <b>48 vezes mais rápido</b>.</li>
+    <li>Comparação sistêmica entre unidades e identificação mais rápida de faltas, excessos e itens críticos.</li>
+    <li>Ferramenta em teste pelos usuários responsáveis, com ciclo de feedback ativo.</li>
+    </ul></div>''', unsafe_allow_html=True)
+
+    u3, u4 = st.columns(2)
+    u3.markdown('''<div class="result-card"><h3>Custos e ApuraSUS</h3><ul>
+    <li>Hospital José Pedro Bezerra selecionado como unidade-piloto.</li>
+    <li>Diagnóstico dos gargalos de coleta e lançamento de dados no ApuraSUS.</li>
+    <li>Estruturação de governança, papéis, indicadores gerenciais e rotinas de análise crítica.</li>
+    <li>Capacitação das equipes e preparação de abordagem replicável para outras unidades.</li>
+    </ul></div>''', unsafe_allow_html=True)
+    u4.markdown('''<div class="result-card"><h3>Contratações, PCA e manutenção</h3><ul>
+    <li>Extração e tratamento do PCA, antes equivalentes a dois dias de dedicação, passaram a ter atualização automática diária via API.</li>
+    <li>Mapeamento integral das fases de planejamento, consolidação e monitoramento do PCA.</li>
+    <li>Minuta padrão de contratos de manutenção aprovada pelo jurídico e pronta para implementação.</li>
+    <li>Capacitação no ManOS CMMS e preparação do piloto de PCM no Hemonorte.</li>
+    </ul></div>''', unsafe_allow_html=True)
+
+    st.success("Produção científica: trabalho aprovado pelo ENEGEP, além de artigos, TCCs, iniciação científica e materiais técnicos vinculados às intervenções.")
 
     p1, p2 = st.columns(2)
     p1.markdown('''<div class="result-card"><h3>6. Produção científica</h3><ul>
