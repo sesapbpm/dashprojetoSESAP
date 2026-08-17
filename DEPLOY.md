@@ -11,6 +11,16 @@ A planilha precisa permanecer compartilhada como “qualquer pessoa com o link �
 
 Para usar outra planilha, configure no Streamlit Cloud uma variável de ambiente chamada `GOOGLE_SHEET_ID` com o identificador do novo arquivo.
 
+## Área interna de governança
+
+A aba de qualidade da base não é criada para visitantes públicos. Para habilitá-la somente à equipe, adicione em **App settings > Secrets**:
+
+```toml
+INTERNAL_ACCESS_KEY = "defina-uma-chave-forte-aqui"
+```
+
+A equipe informa essa chave no campo **Área interna**, dentro da barra lateral. Sem o secret configurado e sem uma chave válida, a aba não existe na interface pública. Para controle individual por usuário, recomenda-se usar autenticação corporativa em vez de uma chave compartilhada.
+
 ## Execução local
 
 ```powershell
