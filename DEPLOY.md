@@ -9,6 +9,8 @@
 
 A planilha precisa permanecer compartilhada como “qualquer pessoa com o link — leitor”. A aplicação consulta o arquivo a cada dez minutos e usa `dados_projeto.xlsx` como contingência caso o Google esteja indisponível.
 
+A logo `LogoProjeto.png` deve permanecer na raiz do repositório junto de `app.py`.
+
 Para usar outra planilha, configure no Streamlit Cloud uma variável de ambiente chamada `GOOGLE_SHEET_ID` com o identificador do novo arquivo.
 
 ## Área interna de governança

@@ -8,6 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import requests
 import streamlit as st
+from PIL import Image
 
 
 st.set_page_config(
@@ -43,8 +44,8 @@ st.markdown(
     [data-testid="stMetricValue"] { color: #17313A; }
     .hero { padding: 22px 26px; border-radius: 16px; color: white; margin-bottom: 18px;
             background: linear-gradient(110deg, #004E61 0%, #007D86 60%, #00A6A6 100%); }
-    .hero-grid { display:grid; grid-template-columns:110px 1fr; gap:22px; align-items:center; }
-    .hero-logo { width:104px; height:104px; object-fit:contain; background:rgba(255,255,255,.96); border-radius:14px; padding:5px; }
+    .hero-grid { display:grid; grid-template-columns:190px 1fr; gap:28px; align-items:center; }
+    .hero-logo { width:190px; height:150px; object-fit:contain; background:transparent; padding:0; }
     .hero h1 { margin: 0; font-size: 1.62rem; line-height:1.2; font-weight: 700; }
     .hero p { margin: 9px 0 0; color: #E6F7F7; line-height:1.45; }
     .section-title { font-size: 1.15rem; font-weight: 700; color: #17313A; margin: 12px 0 8px; }
@@ -62,7 +63,7 @@ st.markdown(
     .result-card p, .result-card li { font-size:.9rem; color:#52646B; line-height:1.45; }
     .impact { background:#073670; border-radius:14px; padding:20px; color:white; }
     .impact h3 { margin-top:0; color:white; } .impact li { margin:7px 0; color:#EDF7FF; }
-    @media(max-width:700px){ .hero-grid{grid-template-columns:1fr}.hero-logo{width:82px;height:82px}.hero h1{font-size:1.25rem} }
+    @media(max-width:700px){ .hero-grid{grid-template-columns:1fr}.hero-logo{width:150px;height:115px}.hero h1{font-size:1.25rem} }
     footer { visibility: hidden; }
     </style>
     """,
@@ -147,6 +148,13 @@ except Exception as erro:
 hoje = pd.Timestamp.now().normalize()
 
 with st.sidebar:
+    if (ROOT / "LogoProjeto.png").exists():
+        logo_sidebar = Image.open(ROOT / "LogoProjeto.png")
+        if logo_sidebar.mode == "RGBA" and logo_sidebar.getbbox():
+            logo_sidebar = logo_sidebar.crop(logo_sidebar.getbbox())
+        st.image(logo_sidebar, use_container_width=True)
+    st.caption("DIMP · SESAP/RN · UFRN")
+    st.divider()
     st.markdown("### Filtros")
     fases = st.multiselect("Fase", sorted(entregas["Fase"].unique()), default=[])
     frentes = st.multiselect("Frente", sorted(entregas["Frente"].unique()), default=[])
@@ -189,7 +197,15 @@ if isinstance(periodo, (tuple, list)) and len(periodo) == 2:
     df = df[df["Data"].isna() | df["Data"].between(inicio, fim)]
 
 logo_path = ROOT / "LogoProjeto.png"
-logo_b64 = base64.b64encode(logo_path.read_bytes()).decode() if logo_path.exists() else ""
+if logo_path.exists():
+    logo_imagem = Image.open(logo_path)
+    if logo_imagem.mode == "RGBA" and logo_imagem.getbbox():
+        logo_imagem = logo_imagem.crop(logo_imagem.getbbox())
+    logo_buffer = BytesIO()
+    logo_imagem.save(logo_buffer, format="PNG")
+    logo_b64 = base64.b64encode(logo_buffer.getvalue()).decode()
+else:
+    logo_b64 = ""
 logo_html = f'<img class="hero-logo" src="data:image/png;base64,{logo_b64}" alt="Logo DIMP-SESAP">' if logo_b64 else ""
 st.markdown(f"""
     <div class="hero"><div class="hero-grid">{logo_html}<div>
