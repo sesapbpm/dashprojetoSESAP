@@ -1,0 +1,29 @@
+{
+  "name": "SESAP Executivo",
+  "dataColors": ["#005A70", "#00A6A6", "#F2B134", "#6E8B3D", "#D95D39", "#6B7280"],
+  "background": "#F4F7F8",
+  "foreground": "#17313A",
+  "tableAccent": "#005A70",
+  "good": "#238636",
+  "neutral": "#F2B134",
+  "bad": "#C93C37",
+  "minimum": "#E7F2F3",
+  "center": "#58B7B5",
+  "maximum": "#005A70",
+  "textClasses": {
+    "callout": {"fontSize": 30, "fontFace": "Segoe UI Semibold", "color": "#17313A"},
+    "title": {"fontSize": 13, "fontFace": "Segoe UI Semibold", "color": "#17313A"},
+    "header": {"fontSize": 11, "fontFace": "Segoe UI Semibold", "color": "#17313A"},
+    "label": {"fontSize": 10, "fontFace": "Segoe UI", "color": "#52646B"}
+  },
+  "visualStyles": {
+    "*": {
+      "*": {
+        "background": [{"color": {"solid": {"color": "#FFFFFF"}}, "transparency": 0}],
+        "border": [{"show": true, "color": {"solid": {"color": "#DDE6E8"}}, "radius": 8}],
+        "visualHeader": [{"show": false}]
+      }
+    },
+    "page": {"*": {"background": [{"color": {"solid": {"color": "#F4F7F8"}}, "transparency": 0}]}}
+  }
+}
