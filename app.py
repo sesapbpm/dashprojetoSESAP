@@ -1,6 +1,7 @@
 from io import BytesIO
 from pathlib import Path
 import os
+import base64
 
 import pandas as pd
 import plotly.express as px
@@ -13,7 +14,7 @@ st.set_page_config(
     page_title="Projeto SESAP | Painel Executivo",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 ROOT = Path(__file__).resolve().parent
@@ -40,10 +41,12 @@ st.markdown(
     [data-testid="stMetric"] { background: white; border: 1px solid #DDE6E8; border-radius: 12px; padding: 16px; }
     [data-testid="stMetricLabel"] { color: #60747B; }
     [data-testid="stMetricValue"] { color: #17313A; }
-    .hero { padding: 24px 28px; border-radius: 16px; color: white; margin-bottom: 18px;
+    .hero { padding: 22px 26px; border-radius: 16px; color: white; margin-bottom: 18px;
             background: linear-gradient(110deg, #004E61 0%, #007D86 60%, #00A6A6 100%); }
-    .hero h1 { margin: 0; font-size: 2rem; font-weight: 700; }
-    .hero p { margin: 8px 0 0; color: #E6F7F7; }
+    .hero-grid { display:grid; grid-template-columns:110px 1fr; gap:22px; align-items:center; }
+    .hero-logo { width:104px; height:104px; object-fit:contain; background:rgba(255,255,255,.96); border-radius:14px; padding:5px; }
+    .hero h1 { margin: 0; font-size: 1.62rem; line-height:1.2; font-weight: 700; }
+    .hero p { margin: 9px 0 0; color: #E6F7F7; line-height:1.45; }
     .section-title { font-size: 1.15rem; font-weight: 700; color: #17313A; margin: 12px 0 8px; }
     .phase-card { background: white; border: 1px solid #DDE6E8; border-radius: 12px; padding: 14px 16px; min-height: 112px; }
     .phase-active { border: 2px solid #00A6A6; box-shadow: 0 3px 12px rgba(0,166,166,.12); }
@@ -53,6 +56,13 @@ st.markdown(
     .done { background:#E5F5E9; color:#238636; } .active { background:#DDF5F3; color:#006D72; }
     .future { background:#EEF1F2; color:#60747B; }
     .note { background:#FFF9E8; border-left:4px solid #F2B134; padding:12px 14px; border-radius:6px; color:#5C4A12; }
+    .capacity { background:linear-gradient(90deg,#EAF6F6,#FFFFFF); border:1px solid #CDE7E6; border-radius:14px; padding:16px 20px; margin:12px 0 18px; }
+    .result-card { background:#FFFFFF; border:1px solid #DDE6E8; border-radius:14px; padding:18px; min-height:190px; }
+    .result-card h3 { font-size:1rem; margin:0 0 10px; color:#005A70; }
+    .result-card p, .result-card li { font-size:.9rem; color:#52646B; line-height:1.45; }
+    .impact { background:#073670; border-radius:14px; padding:20px; color:white; }
+    .impact h3 { margin-top:0; color:white; } .impact li { margin:7px 0; color:#EDF7FF; }
+    @media(max-width:700px){ .hero-grid{grid-template-columns:1fr}.hero-logo{width:82px;height:82px}.hero h1{font-size:1.25rem} }
     footer { visibility: hidden; }
     </style>
     """,
@@ -148,6 +158,18 @@ with st.sidebar:
     else:
         periodo = ()
     st.divider()
+    st.markdown("#### Área interna")
+    try:
+        chave_configurada = os.getenv("INTERNAL_ACCESS_KEY") or st.secrets.get("INTERNAL_ACCESS_KEY", "")
+    except Exception:
+        chave_configurada = os.getenv("INTERNAL_ACCESS_KEY", "")
+    chave_informada = st.text_input("Chave da equipe", type="password", help="Libera indicadores de qualidade e saneamento da base.")
+    acesso_interno = bool(chave_configurada and chave_informada == chave_configurada)
+    if chave_informada and not acesso_interno:
+        st.error("Chave interna inválida.")
+    if acesso_interno:
+        st.success("Modo interno habilitado")
+    st.divider()
     if st.button("Atualizar dados", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
@@ -166,13 +188,20 @@ if isinstance(periodo, (tuple, list)) and len(periodo) == 2:
     inicio, fim = pd.Timestamp(periodo[0]), pd.Timestamp(periodo[1])
     df = df[df["Data"].isna() | df["Data"].between(inicio, fim)]
 
-st.markdown(
-    """<div class="hero"><h1>Painel Executivo do Projeto SESAP</h1>
-    <p>Entregas, resultados e evolução dos marcos · UFRN + Secretaria de Estado da Saúde Pública do RN</p></div>""",
-    unsafe_allow_html=True,
-)
+logo_path = ROOT / "LogoProjeto.png"
+logo_b64 = base64.b64encode(logo_path.read_bytes()).decode() if logo_path.exists() else ""
+logo_html = f'<img class="hero-logo" src="data:image/png;base64,{logo_b64}" alt="Logo DIMP-SESAP">' if logo_b64 else ""
+st.markdown(f"""
+    <div class="hero"><div class="hero-grid">{logo_html}<div>
+    <h1>Desenvolvimento e Implantação de Ferramentas BPM</h1>
+    <p>Modernização dos processos de gestão nos níveis estratégico, tático e operacional da Secretaria de Estado da Saúde Pública do Rio Grande do Norte — SESAP/RN.</p>
+    <p><b>Parceria:</b> SESAP/RN e Departamento de Engenharia de Produção da UFRN</p>
+    </div></div></div>""", unsafe_allow_html=True)
 
-abas = st.tabs(["Visão executiva", "Entregas e resultados", "Evolução dos marcos", "Governança dos dados"])
+nomes_abas = ["Visão executiva", "Entregas e resultados", "Evolução dos marcos", "Resultados das intervenções"]
+if acesso_interno:
+    nomes_abas.append("🔒 Governança dos dados")
+abas = st.tabs(nomes_abas)
 
 with abas[0]:
     total = len(df)
@@ -182,12 +211,28 @@ with abas[0]:
     progresso = progresso_ponderado(marcos)
     ultima = df["Data"].max()
 
-    c1, c2, c3, c4, c5 = st.columns(5)
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric("Entregas realizadas", f"{realizados}")
     c2.metric("Taxa de conclusão", f"{taxa:.1%}")
     c3.metric("Pendências", f"{pendentes}")
     c4.metric("Progresso dos marcos", f"{progresso:.1f}%")
-    c5.metric("Capacidade semanal", "160 h")
+
+    inicio_projeto = pd.Timestamp("2024-10-01")
+    fim_projeto = pd.Timestamp("2027-10-31")
+    data_referencia = min(max(hoje, inicio_projeto), fim_projeto)
+    dias_uteis_decorridos = len(pd.bdate_range(inicio_projeto, data_referencia))
+    horas_acumuladas = round(dias_uteis_decorridos / 5 * 160)
+    dias_pessoa_acumulados = round(horas_acumuladas / 8)
+    total_dias_uteis = len(pd.bdate_range(inicio_projeto, fim_projeto))
+    total_horas_projeto = round(total_dias_uteis / 5 * 160)
+    total_dias_pessoa = round(total_horas_projeto / 8)
+    st.markdown('<div class="section-title">Capacidade de dedicação da equipe</div>', unsafe_allow_html=True)
+    h1, h2, h3, h4 = st.columns(4)
+    h1.metric("Capacidade semanal", "160 h", "20 dias-pessoa")
+    h2.metric("Equipe dedicada", "11 pessoas", "5 professores · 5 bolsistas · 1 gerente")
+    h3.metric("Capacidade acumulada", f"{horas_acumuladas:,.0f} h".replace(",", "."), f"{dias_pessoa_acumulados:,.0f} dias-pessoa".replace(",", "."))
+    h4.metric("Capacidade total planejada", f"{total_horas_projeto:,.0f} h".replace(",", "."), f"{total_dias_pessoa:,.0f} dias-pessoa".replace(",", "."))
+    st.caption("Capacidade nominal: professores 8 h/semana; bolsistas e gerente 20 h/semana. Dias-pessoa calculados a 8 horas por dia, sem desconto de feriados e afastamentos.")
 
     st.markdown('<div class="section-title">Jornada do projeto</div>', unsafe_allow_html=True)
     periodos = [
@@ -262,6 +307,50 @@ with abas[2]:
     st.plotly_chart(grafico_layout(fig, 430), use_container_width=True)
 
 with abas[3]:
+    capacitacoes = entregas[(entregas["Tipo"] == "Capacitação") & (entregas["Status"] == "Realizado")]
+    horas_capacitacao = capacitacoes["Horas"].sum()
+    treinamentos_com_hora = int(capacitacoes["Horas"].notna().sum())
+    st.markdown('<div class="section-title">Principais resultados e ações desenvolvidas</div>', unsafe_allow_html=True)
+    st.caption("Resultados consolidados das intervenções realizadas nas fases Estratégica e Tática.")
+
+    r1, r2 = st.columns(2)
+    r1.markdown('''<div class="result-card"><h3>1. Estruturação e governança</h3><ul>
+    <li><b>Estruturação da DPCON:</b> proposta de criação da Diretoria de Processos e Contratos, com competências, macroprocessos e modelo de governança.</li>
+    <li><b>Layout da DPCON:</b> proposta de espaço físico otimizado, integrando núcleos e melhorando a comunicação interna.</li>
+    <li><b>Pontos de remuneração:</b> critérios e modelo de distribuição para fiscais de contrato, com foco em desempenho e equidade.</li>
+    </ul></div>''', unsafe_allow_html=True)
+    r2.markdown('''<div class="result-card"><h3>2. Contratos e manutenção</h3><ul>
+    <li><b>Minuta para contratos de manutenção:</b> modelo padronizado baseado em Planejamento e Controle de Manutenção — PCM.</li>
+    <li><b>Contratos.gov:</b> adoção da plataforma para publicação, acompanhamento e gestão centralizada dos contratos.</li>
+    </ul></div>''', unsafe_allow_html=True)
+
+    r3, r4 = st.columns(2)
+    r3.markdown('''<div class="result-card"><h3>3. Central de Compras</h3><p>Diagnóstico detalhado da situação atual, identificação de gargalos, riscos e oportunidades e proposição de estrutura e processos para consolidação da Central de Compras da SESAP.</p></div>''', unsafe_allow_html=True)
+    r4.markdown('''<div class="result-card"><h3>4. Custos e contabilidade</h3><p>Mapeamento e análise dos custos dos serviços de saúde no sistema APURASUS, ampliando a precisão do custeio e o suporte à tomada de decisão baseada em dados.</p></div>''', unsafe_allow_html=True)
+
+    st.markdown('<div class="section-title">Automação e ganho de eficiência</div>', unsafe_allow_html=True)
+    a1, a2 = st.columns(2)
+    a1.metric("Robô de aquisições", "> 90%", "redução no tempo de extração e consolidação")
+    a1.caption("Automação via RPA da extração de dados do SIPAC, antes realizada manualmente.")
+    a2.metric("Planilha de terceirizados", "> 99%", "redução no tempo de análise")
+    a2.caption("Conferência automatizada das folhas de ponto: de aproximadamente 57h40 para poucos minutos.")
+
+    p1, p2 = st.columns(2)
+    p1.markdown('''<div class="result-card"><h3>6. Produção científica</h3><ul>
+    <li>Submissão de artigos científicos e apresentações em eventos.</li><li>Desenvolvimento de TCCs e iniciação científica.</li>
+    <li>Relatórios técnicos, ferramentas e materiais metodológicos.</li></ul></div>''', unsafe_allow_html=True)
+    p2.markdown(f'''<div class="result-card"><h3>7. Treinamentos realizados</h3>
+    <p style="font-size:1.8rem;font-weight:700;color:#B27800;margin:4px 0">{horas_capacitacao:.0f} h</p>
+    <p>de capacitações executadas em <b>{treinamentos_com_hora}</b> registros com carga horária informada.</p>
+    <p>Formato presencial e on-line, alcançando fiscais e gestores da SESAP. Temas: BPM, SIPAC, PCM, gestão de contratos, planilhas, indicadores e ferramentas de gestão.</p></div>''', unsafe_allow_html=True)
+
+    st.markdown('''<div class="impact"><h3>Impactos gerados</h3><ul>
+    <li>Mais eficiência e agilidade nos processos.</li><li>Maior controle, transparência e rastreabilidade das informações.</li>
+    <li>Redução de retrabalho e erros manuais.</li><li>Melhor gestão dos contratos e dos recursos públicos.</li>
+    <li>Base mais sólida para decisões estratégicas orientadas por dados.</li></ul></div>''', unsafe_allow_html=True)
+
+if acesso_interno:
+  with abas[4]:
     sem_data = int(entregas["Data"].isna().sum())
     sem_resp = int((entregas["Responsável"] == "Não informado").sum())
     sem_horas = int(entregas["Horas"].isna().sum())
@@ -275,4 +364,3 @@ with abas[3]:
     st.markdown('<div class="section-title">Registros que precisam de saneamento</div>', unsafe_allow_html=True)
     problemas = entregas[entregas["Data"].isna() | (entregas["Responsável"] == "Não informado") | entregas["Horas"].isna()]
     st.dataframe(problemas[["ID", "Data", "Descrição", "Frente", "Responsável", "Horas", "Status"]], use_container_width=True, hide_index=True, height=460)
-
